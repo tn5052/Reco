@@ -10,10 +10,10 @@ app = FastAPI()
 event_df = pd.read_csv("event.csv")
 event_df['id'] = range(1, len(event_df) + 1)
 
-# Load similarity matrix
 with open("event_data.pkl", "rb") as f:
     similarity = pickle.load(f)
 
+# Define a Pydantic model for user bookings
 class UserBookings(BaseModel):
     events: list[str]
 
@@ -36,21 +36,23 @@ def recommend_events(user_bookings: UserBookings):
     # If no valid event indices are found, return an error
     if not event_indices:
         raise HTTPException(status_code=400, detail="No valid events found for recommendation")
-
+    
     # Print debug information about event indices and similarity matrix shape
     print(f"Event indices for booked events: {event_indices}")
     print(f"Similarity matrix shape: {similarity.shape}")
 
-    # Calculate average similarity across the booked events
+    # Convert event_indices to a NumPy array for better indexing
+    event_indices = np.array(event_indices)
+
     try:
-        # Extract the similarity values for the event indices
-        similarity_values = similarity[event_indices]  # Assuming similarity is a 2D array
-        print(f"Similarity values for indices {event_indices}: {similarity_values}")  # Debug print
+        # Assuming similarity is a 2D NumPy array
+        similarity_values = similarity[event_indices]  # Correctly fetch rows based on event indices
+        print(f"Similarity values for indices {event_indices}: {similarity_values}")
         # Calculate mean similarity across the events booked
         mean_similarity = np.nanmean(similarity_values, axis=0)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to compute similarity: {e}")
-
+    
     # Sort by similarity to find the most relevant events
     try:
         # Get sorted event indices based on mean similarity
