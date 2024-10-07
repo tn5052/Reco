@@ -3,5 +3,3 @@ uvicorn
 pandas
 scikit-learn
 nltk
-typing
-logging
