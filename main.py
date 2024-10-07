@@ -46,10 +46,16 @@ def recommend_events(user_bookings: UserBookings):
 
     try:
         # Fetch the similarity values based on the indices
-        similarity_values = similarity[event_indices] if isinstance(similarity, np.ndarray) else similarity.loc[event_indices]
+        if isinstance(similarity, pd.DataFrame):
+            similarity_values = similarity.iloc[event_indices]  # Use .iloc for DataFrame
+        else:
+            similarity_values = similarity[event_indices]  # Use indexing for NumPy array
+        
         print(f"Similarity values for indices {event_indices}: {similarity_values}")
+        
         # Calculate mean similarity across the events booked
-        mean_similarity = np.nanmean(similarity_values, axis=0)
+        mean_similarity = np.nanmean(similarity_values, axis=0) if isinstance(similarity_values, np.ndarray) else similarity_values.mean(axis=0)
+        
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to compute similarity: {e}")
     
