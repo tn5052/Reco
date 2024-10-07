@@ -41,12 +41,12 @@ def recommend_events(user_bookings: UserBookings):
     print(f"Event indices for booked events: {event_indices}")
     print(f"Similarity matrix shape: {similarity.shape}")
 
-    # Convert event_indices to a NumPy array for better indexing
-    event_indices = np.array(event_indices)
+    # Ensure event_indices are of the correct type for indexing
+    event_indices = [int(idx) for idx in event_indices]  # Convert to int if they're np.int64
 
     try:
-        # Assuming similarity is a 2D NumPy array
-        similarity_values = similarity[event_indices]  # Correctly fetch rows based on event indices
+        # Fetch the similarity values based on the indices
+        similarity_values = similarity[event_indices] if isinstance(similarity, np.ndarray) else similarity.loc[event_indices]
         print(f"Similarity values for indices {event_indices}: {similarity_values}")
         # Calculate mean similarity across the events booked
         mean_similarity = np.nanmean(similarity_values, axis=0)
