@@ -22,12 +22,13 @@ class UserBookings(BaseModel):
 @app.post("/recommend")
 def recommend_events(user_bookings: UserBookings):
     event_indices = []
-    
+
     # Collect indices for each event the user has booked
     for event in user_bookings.events:
         try:
+            # Find the event index
             event_index = event_df[event_df['event_title'] == event].index[0]
-            # Check if event index is within bounds of the similarity matrix
+            # Ensure the index is within the bounds of the similarity matrix
             if event_index >= similarity.shape[0]:
                 return {"error": f"Event index '{event_index}' is out of bounds for the similarity matrix"}
             event_indices.append(event_index)
@@ -38,15 +39,17 @@ def recommend_events(user_bookings: UserBookings):
     if not event_indices:
         return {"error": "No valid events found for recommendation"}
 
-    # Print debug information about event indices
+    # Print debug information about event indices and similarity matrix shape
     print(f"Event indices for booked events: {event_indices}")
     print(f"Similarity matrix shape: {similarity.shape}")
 
+    # Log the actual contents of the similarity matrix (optional, for debugging)
+    print(f"Similarity matrix content (sample): {similarity}")
+
     # Calculate average similarity across the booked events
     try:
-        # Check the individual similarity values to identify the issue
         similarity_values = [similarity[idx] for idx in event_indices]
-        print(f"Similarity values: {similarity_values}")  # Debug print
+        print(f"Similarity values for indices {event_indices}: {similarity_values}")  # Debug print
         mean_similarity = np.mean(similarity_values, axis=0)
     except Exception as e:
         return {"error": f"Failed to compute similarity: {e}"}
