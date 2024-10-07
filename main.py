@@ -1,5 +1,5 @@
 import pickle
-from fastapi import FastAPI,  HTTPException
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import pandas as pd
 import numpy as np
@@ -9,6 +9,7 @@ app = FastAPI()
 # Load the event data and similarity matrix
 event_df = pd.read_csv("event.csv")
 event_df['id'] = range(1, len(event_df) + 1)
+
 with open("event_data.pkl", "rb") as f:
     similarity = pickle.load(f)
 
@@ -18,6 +19,7 @@ class UserBookings(BaseModel):
 @app.post("/recommendations")
 def recommend_events(user_bookings: UserBookings):
     event_indices = []
+    
     # Collect indices for each event the user has booked
     for event in user_bookings.events:
         try:
@@ -29,21 +31,26 @@ def recommend_events(user_bookings: UserBookings):
             event_indices.append(event_index)
         except IndexError:
             raise HTTPException(status_code=404, detail=f"Event title '{event}' not found in the database")
+    
     # If no valid event indices are found, return an error
     if not event_indices:
         raise HTTPException(status_code=400, detail="No valid events found for recommendation")
+
     # Print debug information about event indices and similarity matrix shape
     print(f"Event indices for booked events: {event_indices}")
     print(f"Similarity matrix shape: {similarity.shape}")
+    
     # Calculate average similarity across the booked events
     try:
         # Extract the similarity values for the event indices
-        similarity_values = similarity[event_indices]  # Assuming similarity is a 2D array
+        similarity_values = similarity[event_indices]
         print(f"Similarity values for indices {event_indices}: {similarity_values}")  # Debug print
+        
         # Calculate mean similarity across the events booked
         mean_similarity = np.nanmean(similarity_values, axis=0)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to compute similarity: {e}")
+    
     # Sort by similarity to find the most relevant events
     try:
         # Get sorted event indices based on mean similarity
