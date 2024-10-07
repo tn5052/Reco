@@ -18,42 +18,38 @@ tfidf_matrix = tfidf.fit_transform(event_df['event_title'])
 # Compute similarity matrix
 similarity = cosine_similarity(tfidf_matrix)
 
-# Define a Pydantic model for user bookings
-class UserBookings(BaseModel):
-    events: list[str]
+class EventInput(BaseModel):
+    title: str
 
 @app.post("/recommend")
-def recommend_events(user_bookings: UserBookings):
-    event_indices = []
-    
-    # Collect indices for each event the user has booked
-    for event in user_bookings.events:
-        try:
-            event_index = event_df[event_df['event_title'] == event].index[0]
-            event_indices.append(event_index)
-        except IndexError:
-            raise HTTPException(status_code=404, detail=f"Event title '{event}' not found in the database")
-    
-    # If no valid event indices are found, return an error
-    if not event_indices:
-        raise HTTPException(status_code=400, detail="No valid events found for recommendation")
+def recommend_events(event_input: EventInput):
+    try:
+        # Find the index of the input event
+        event_index = event_df[event_df['event_title'] == event_input.title].index[0]
+    except IndexError:
+        raise HTTPException(status_code=404, detail=f"Event title '{event_input.title}' not found in the database")
     
     try:
-        # Fetch the similarity values based on the indices
-        similarity_values = similarity[event_indices]
+        # Get similarity scores for the input event
+        sim_scores = list(enumerate(similarity[event_index]))
         
-        # Calculate mean similarity across the events booked
-        mean_similarity = np.mean(similarity_values, axis=0)
+        # Sort events by similarity score
+        sim_scores = sorted(sim_scores, key=lambda x: x[1], reverse=True)
         
-        # Sort by similarity to find the most relevant events
-        event_list = sorted(enumerate(mean_similarity), key=lambda x: x[1], reverse=True)
+        # Get top 100 similar events (excluding the input event)
+        sim_scores = sim_scores[1:101]
         
-        # Filter out the events that the user has already booked
-        recommendations = [
-            event_df.iloc[i]['event_title'] 
-            for i, _ in event_list 
-            if i not in event_indices
-        ][:20]  # Get top 20 recommendations
+        # Get the indices of the top similar events
+        event_indices = [i[0] for i in sim_scores]
+        
+        # Get the titles of the top similar events
+        recommendations = event_df['event_title'].iloc[event_indices].tolist()
+        
+        # Remove any duplicate recommendations
+        recommendations = list(dict.fromkeys(recommendations))
+        
+        # Limit to top 20 recommendations
+        recommendations = recommendations[:20]
         
         return {"recommendations": recommendations}
     except Exception as e:
