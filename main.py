@@ -10,7 +10,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 app = FastAPI()
 
 # Load the event data (make sure to adjust the path)
-event_df = pd.read_csv("/path/to/your/event.csv")
+event_df = pd.read_csv("event.csv")
 
 # Clean the column names
 event_df.columns = event_df.columns.str.strip()
