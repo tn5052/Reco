@@ -1,100 +1,64 @@
-import re
-import logging
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import pandas as pd
-from sklearn.feature_extraction.text import CountVectorizer
+import numpy as np
+from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
-from nltk.stem.porter import PorterStemmer
 
-# Initialize FastAPI
 app = FastAPI()
 
-# Set up logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-# Load and preprocess the event data
+# Load the event data
 event_df = pd.read_csv("event.csv")
 event_df['id'] = range(1, len(event_df) + 1)
 
-# Function to remove numbers from strings
-def remove_numbers(text):
-    return re.sub(r'\d+', '', text).strip()
+# Create TF-IDF vectorizer
+tfidf = TfidfVectorizer(stop_words='english')
+tfidf_matrix = tfidf.fit_transform(event_df['event_title'])
 
-event_df['event_title'] = event_df['event_title'].apply(remove_numbers)
+# Compute similarity matrix
+similarity = cosine_similarity(tfidf_matrix)
 
-# Create tags by combining relevant columns
-def create_tags(row):
-    return f"{row['speaker']}, {row['category']}, {row['description']}, {row['venue']}".lower()
+# Define a Pydantic model for user bookings
+class UserBookings(BaseModel):
+    events: list[str]
 
-event_df['tags'] = event_df.apply(create_tags, axis=1)
-
-# Apply stemming
-ps = PorterStemmer()
-
-def stem(text):
-    return " ".join([ps.stem(word) for word in text.split()])
-
-event_df['tags'] = event_df['tags'].apply(stem)
-
-# Create a CountVectorizer to convert text into vectors
-cv = CountVectorizer(max_features=5000, stop_words="english")
-vectors = cv.fit_transform(event_df['tags']).toarray()
-
-# Compute the cosine similarity matrix
-similarity = cosine_similarity(vectors)
-logger.info("Cosine similarity matrix computed.")
-
-# Pydantic model for input validation
-class EventInput(BaseModel):
-    title: str
-
-# Helper function to find event index
-def find_event_index(title):
-    title = remove_numbers(title.lower())
-    try:
-        event_index = event_df[event_df['event_title'] == title].index[0]
-        return event_index
-    except IndexError:
-        logger.error(f"Event title '{title}' not found in the database.")
-        raise HTTPException(status_code=404, detail=f"Event title '{title}' not found in the database.")
-
-# Endpoint to recommend events
 @app.post("/recommend")
-def recommend_events(event_input: EventInput):
-    event_title = event_input.title
-    logger.info(f"Received request to recommend events for: {event_title}")
-
-    # Get the index of the input event
-    event_index = find_event_index(event_title)
+def recommend_events(user_bookings: UserBookings):
+    event_indices = []
+    
+    # Collect indices for each event the user has booked
+    for event in user_bookings.events:
+        try:
+            event_index = event_df[event_df['event_title'] == event].index[0]
+            event_indices.append(event_index)
+        except IndexError:
+            raise HTTPException(status_code=404, detail=f"Event title '{event}' not found in the database")
+    
+    # If no valid event indices are found, return an error
+    if not event_indices:
+        raise HTTPException(status_code=400, detail="No valid events found for recommendation")
     
     try:
-        # Get similarity scores for the input event
-        sim_scores = list(enumerate(similarity[event_index]))
+        # Fetch the similarity values based on the indices
+        similarity_values = similarity[event_indices]
         
-        # Sort events by similarity score, excluding the input event itself
-        sim_scores = sorted(sim_scores, key=lambda x: x[1], reverse=True)[1:21]
+        # Calculate mean similarity across the events booked
+        mean_similarity = np.mean(similarity_values, axis=0)
         
-        # Get the indices of the top similar events
-        event_indices = [i[0] for i in sim_scores]
+        # Sort by similarity to find the most relevant events
+        event_list = sorted(enumerate(mean_similarity), key=lambda x: x[1], reverse=True)
         
-        # Get the titles of the top similar events
-        recommendations = event_df['event_title'].iloc[event_indices].tolist()
+        # Filter out the events that the user has already booked
+        recommendations = [
+            event_df.iloc[i]['event_title'] 
+            for i, _ in event_list 
+            if i not in event_indices
+        ][:20]  # Get top 20 recommendations
         
-        logger.info(f"Recommendations generated for '{event_title}': {recommendations}")
         return {"recommendations": recommendations}
-    
     except Exception as e:
-        logger.error(f"Failed to generate recommendations: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to generate recommendations: {str(e)}")
 
-# Endpoint to retrieve the list of available events
 @app.get("/events")
 def get_events():
-    try:
-        events = event_df['event_title'].tolist()
-        return {"events": events}
-    except Exception as e:
-        logger.error(f"Failed to retrieve events: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to retrieve events: {str(e)}")
+    return {"events": event_df['event_title'].tolist()}
