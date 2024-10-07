@@ -10,9 +10,11 @@ app = FastAPI()
 event_df = pd.read_csv("event.csv")
 event_df['id'] = range(1, len(event_df) + 1)
 
+# Load the similarity matrix from the pickle file
 with open("event_data.pkl", "rb") as f:
     similarity = pickle.load(f)
 
+# Define the request model
 class UserBookings(BaseModel):
     events: list[str]  # List of event titles the user has previously booked
 
@@ -24,20 +26,32 @@ def recommend_events(user_bookings: UserBookings):
     for event in user_bookings.events:
         try:
             event_index = event_df[event_df['event_title'] == event].index[0]
+            # Check if event index is within bounds of the similarity matrix
+            if event_index >= similarity.shape[0]:
+                return {"error": f"Event index '{event_index}' is out of bounds for the similarity matrix"}
             event_indices.append(event_index)
         except IndexError:
-            # Handle case where event is not found
-            return {"error": f"Event title '{event}' not found in database"}
-    
+            return {"error": f"Event title '{event}' not found in the database"}
+
+    # If no valid event indices are found, return an error
+    if not event_indices:
+        return {"error": "No valid events found for recommendation"}
+
     # Calculate average similarity across the booked events
-    mean_similarity = np.mean([similarity[idx] for idx in event_indices], axis=0)
-    
+    try:
+        mean_similarity = np.mean([similarity[idx] for idx in event_indices], axis=0)
+    except Exception as e:
+        return {"error": f"Failed to compute similarity: {e}"}
+
     # Sort by similarity to find the most relevant events
-    event_list = sorted(list(enumerate(mean_similarity)), reverse=True, key=lambda x: x[1])[1:21]
-    
-    recommendations = [event_df.iloc[i[0]].event_title for i in event_list]
-    return {"recommendations": recommendations}
+    try:
+        event_list = sorted(list(enumerate(mean_similarity)), reverse=True, key=lambda x: x[1])[1:21]
+        recommendations = [event_df.iloc[i[0]].event_title for i in event_list]
+        return {"recommendations": recommendations}
+    except Exception as e:
+        return {"error": f"Failed to generate recommendations: {e}"}
 
 @app.get("/events")
 def get_events():
+    # Return all available events
     return {"events": event_df['event_title'].tolist()}
