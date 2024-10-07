@@ -18,6 +18,7 @@ with open("event_data.pkl", "rb") as f:
 class UserBookings(BaseModel):
     events: list[str]  # List of event titles the user has previously booked
 
+
 @app.post("/recommend")
 def recommend_events(user_bookings: UserBookings):
     event_indices = []
@@ -37,9 +38,16 @@ def recommend_events(user_bookings: UserBookings):
     if not event_indices:
         return {"error": "No valid events found for recommendation"}
 
+    # Print debug information about event indices
+    print(f"Event indices for booked events: {event_indices}")
+    print(f"Similarity matrix shape: {similarity.shape}")
+
     # Calculate average similarity across the booked events
     try:
-        mean_similarity = np.mean([similarity[idx] for idx in event_indices], axis=0)
+        # Check the individual similarity values to identify the issue
+        similarity_values = [similarity[idx] for idx in event_indices]
+        print(f"Similarity values: {similarity_values}")  # Debug print
+        mean_similarity = np.mean(similarity_values, axis=0)
     except Exception as e:
         return {"error": f"Failed to compute similarity: {e}"}
 
