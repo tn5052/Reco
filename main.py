@@ -7,18 +7,22 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 app = FastAPI()
 
-# Load the event data
-event_df = pd.read_csv("event.csv")
+# Load and preprocess the event data
+event_df = pd.read_csv("event.csv")  # Ensure event.csv has relevant columns like 'event_title', 'speaker', etc.
 event_df['id'] = range(1, len(event_df) + 1)
 
-# Create TF-IDF vectorizer
-tfidf = TfidfVectorizer(stop_words='english')
-tfidf_matrix = tfidf.fit_transform(event_df['event_title'])
+# Combine relevant columns into a 'tags' column for text-based similarity
+event_df['tags'] = event_df.apply(lambda row: f"{row['event_title']} {row['speaker']} {row['category']} {row['description']} {row['venue']}", axis=1)
+event_df['tags'] = event_df['tags'].apply(lambda x: x.lower())  # Convert all text to lowercase for uniformity
 
-# Compute similarity matrix
+# Create TF-IDF vectorizer for calculating similarity
+tfidf = TfidfVectorizer(stop_words='english')
+tfidf_matrix = tfidf.fit_transform(event_df['tags'])
+
+# Compute cosine similarity matrix
 similarity = cosine_similarity(tfidf_matrix)
 
-# Define a Pydantic model for user bookings
+# Pydantic model to accept event bookings from users
 class UserBookings(BaseModel):
     events: list[str]
 
@@ -29,7 +33,7 @@ def recommend_events(user_bookings: UserBookings):
     # Collect indices for each event the user has booked
     for event in user_bookings.events:
         try:
-            event_index = event_df[event_df['event_title'] == event].index[0]
+            event_index = event_df[event_df['event_title'].str.lower() == event.lower()].index[0]
             event_indices.append(event_index)
         except IndexError:
             raise HTTPException(status_code=404, detail=f"Event title '{event}' not found in the database")
@@ -39,10 +43,10 @@ def recommend_events(user_bookings: UserBookings):
         raise HTTPException(status_code=400, detail="No valid events found for recommendation")
     
     try:
-        # Fetch the similarity values based on the indices
+        # Fetch the similarity values based on the indices of booked events
         similarity_values = similarity[event_indices]
         
-        # Calculate mean similarity across the events booked
+        # Calculate mean similarity across the booked events
         mean_similarity = np.mean(similarity_values, axis=0)
         
         # Sort by similarity to find the most relevant events
@@ -61,4 +65,5 @@ def recommend_events(user_bookings: UserBookings):
 
 @app.get("/events")
 def get_events():
+    # Return all available event titles
     return {"events": event_df['event_title'].tolist()}
