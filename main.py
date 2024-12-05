@@ -121,6 +121,10 @@ def analyze_sentiment(review):
 
 # API Endpoint for Sentiment Analysis
 @app.post("/sentiment")
-async def sentiment_analysis(request: SentimentRequest):
-    sentiment = analyze_sentiment(request.review)
-    return {"review": request.review, "sentiment": sentiment}
+async def sentiment_analysis(request: SentimentAnalysisRequest):
+    reviews = request.reviews
+    results = []
+    for review in reviews:
+        sentiment = analyze_sentiment(review)
+        results.append({"review": review, "sentiment": sentiment})
+    return {"results": results}
