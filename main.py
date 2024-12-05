@@ -84,3 +84,43 @@ async def get_recommendations(request: RecommendRequest):
     if not recommendations:
         raise HTTPException(status_code=404, detail="Event not found or no recommendations available.")
     return {"recommendations": recommendations}
+
+# New Endpoint: Sentiment Analysis
+class SentimentRequest(BaseModel):
+    review: str
+
+# Load the sentiment dataset
+reviews = pd.read_csv("sentiment.csv")
+
+# Define positive and negative words
+positive_words = {
+    "amazing", "exceptional", "fantastic", "loved", "great", "recommended", 
+    "learned", "insightful", "attend", "speakers", "good", "excellent", 
+    "enjoyed", "well", "informative", "interesting", "useful", "helpful", 
+    "best", "awesome", "brilliant", "fabulous", "outstanding", "superb", 
+    "wonderful", "perfect", "love", "like", "nice", "happy", "exciting", 
+    "fun", "enjoy", "positive", "satisfied", "recommend", "inspiring", 
+    "motivating", "insightful", "knowledgeable", "impressed", "beneficial", 
+    "valuable", "productive", "effective", "efficient", "successful", 
+    "satisfactory", "pleased", "glad", "comfortable", "confident", "relaxed"
+}
+negative_words = {"not", "bad", "average", "could", "better", "worth", "improve", "disappointed", "waste", "poor"}
+
+# Function to calculate sentiment for a single review
+def analyze_sentiment(review):
+    review_words = review.lower().split()
+    positive_score = sum(1 for word in review_words if word in positive_words)
+    negative_score = sum(1 for word in review_words if word in negative_words)
+    sentiment_score = positive_score - negative_score
+    if sentiment_score > 0:
+        return "Positive"
+    elif sentiment_score < 0:
+        return "Negative"
+    else:
+        return "Neutral"
+
+# API Endpoint for Sentiment Analysis
+@app.post("/sentiment")
+async def sentiment_analysis(request: SentimentRequest):
+    sentiment = analyze_sentiment(request.review)
+    return {"review": request.review, "sentiment": sentiment}
