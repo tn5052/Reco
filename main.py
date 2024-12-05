@@ -86,8 +86,8 @@ async def get_recommendations(request: RecommendRequest):
     return {"recommendations": recommendations}
 
 # New Endpoint: Sentiment Analysis
-class SentimentRequest(BaseModel):
-    review: str
+class SentimentAnalysisRequest(BaseModel):
+    reviews: List[str]
 
 # Load the sentiment dataset
 reviews = pd.read_csv("sentiment.csv")
@@ -121,10 +121,15 @@ def analyze_sentiment(review):
 
 # API Endpoint for Sentiment Analysis
 @app.post("/sentiment")
-async def sentiment_analysis(request: SentimentAnalysisRequest):
-    reviews = request.reviews
+ reviews = request.reviews
     results = []
+
+    # Example sentiment analysis (this is a placeholder for actual logic)
     for review in reviews:
-        sentiment = analyze_sentiment(review)
-        results.append({"review": review, "sentiment": sentiment})
+        sentiment = "Positive" if "good" in review.lower() else "Negative"  # Simplified sentiment analysis
+        results.append({
+            "review": review,
+            "sentiment": sentiment
+        })
+    
     return {"results": results}
